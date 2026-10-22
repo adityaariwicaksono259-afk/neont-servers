@@ -2,3 +2,8 @@ name = "neont-servers"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "NEONT_DB"
+database_name = "javin-db"
+database_id = "af1d2d45-565f-4bb1-8af0-4834c90c7282"
