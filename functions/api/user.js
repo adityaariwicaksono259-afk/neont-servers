@@ -87,6 +87,9 @@ export async function onRequestPut({ request, env }) {
   if (body.display_name !== undefined) { updates.push('display_name = ?'); values.push(String(body.display_name).slice(0, 50)); }
   if (body.bio !== undefined) { updates.push('bio = ?'); values.push(String(body.bio).slice(0, 200)); }
   if (body.photo_url !== undefined) { updates.push('photo_url = ?'); values.push(String(body.photo_url)); }
+  if (body.privacy_last_seen !== undefined) { updates.push('privacy_last_seen = ?'); values.push(String(body.privacy_last_seen)); }
+  if (body.privacy_profile_photo !== undefined) { updates.push('privacy_profile_photo = ?'); values.push(String(body.privacy_profile_photo)); }
+  if (body.privacy_calls !== undefined) { updates.push('privacy_calls = ?'); values.push(String(body.privacy_calls)); }
 
   if (updates.length === 0) return json({ ok: false, message: 'Tidak ada yang diupdate' }, 400);
 
