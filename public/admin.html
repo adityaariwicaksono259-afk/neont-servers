@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEONT Admin Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #F2F2F7; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
+    .card { background: #FFFFFF; border-radius: 16px; padding: 32px; max-width: 400px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .logo { text-align: center; margin-bottom: 24px; }
+    .logo h1 { font-size: 24px; color: #007AFF; font-weight: 700; }
+    .logo p { color: #8E8E93; font-size: 14px; margin-top: 4px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 14px; color: #8E8E93; margin-bottom: 6px; font-weight: 500; }
+    input { width: 100%; padding: 12px 16px; border: 1px solid #E5E5EA; border-radius: 10px; font-size: 16px; background: #F2F2F7; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #007AFF; background: #FFFFFF; }
+    button { width: 100%; padding: 14px; border: none; border-radius: 10px; background: #007AFF; color: #FFFFFF; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: opacity 0.2s; }
+    button:hover { opacity: 0.9; }
+    button:disabled { background: #C7C7CC; cursor: not-allowed; }
+    .error { color: #FF3B30; font-size: 14px; margin-top: 12px; text-align: center; }
+    .success { color: #34C759; font-size: 14px; margin-top: 12px; text-align: center; }
+    .hidden { display: none; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .otp-input { letter-spacing: 8px; text-align: center; font-size: 24px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <script>
+    // Sembunyikan panel jika hash bukan #admin
+    if (window.location.hash !== '#admin') {
+      document.body.innerHTML = '<div style="text-align:center; padding:50px; font-family:sans-serif;"><h1>404</h1><p>Halaman tidak ditemukan.</p></div>';
+      throw new Error('Access denied');
+    }
+  </script>
+  <div class="card">
+    <div class="logo">
+      <h1>NEONT Admin</h1>
+      <p>Panel Verifikasi User</p>
+    </div>
+
+    <!-- STEP 1: Password + PIN -->
+    <div id="step1" class="step active">
+      <div class="form-group">
+        <label>Password Admin</label>
+        <input type="password" id="password" placeholder="Masukkan password">
+      </div>
+      <div class="form-group">
+        <label>PIN Rahasia</label>
+        <input type="password" id="pin" placeholder="Masukkan PIN">
+      </div>
+      <button id="btnLogin">Login</button>
+      <div id="error1" class="error hidden"></div>
+    </div>
+
+    <!-- STEP 2: OTP Telegram -->
+    <div id="step2" class="step">
+      <p style="text-align:center; color:#8E8E93; font-size:14px; margin-bottom:16px;">
+        Kode OTP telah dikirim ke Telegram Anda.
+      </p>
+      <div class="form-group">
+        <label>Kode OTP (6 digit)</label>
+        <input type="text" id="otp" class="otp-input" maxlength="6" placeholder="••••••">
+      </div>
+      <button id="btnVerifyOtp">Verifikasi OTP</button>
+      <div id="error2" class="error hidden"></div>
+    </div>
+
+    <!-- STEP 3: Verifikasi User -->
+    <div id="step3" class="step">
+      <div class="form-group">
+        <label>Username User</label>
+        <input type="text" id="username" placeholder="contoh: neot">
+      </div>
+      <button id="btnVerifyUser">✅ Verifikasi User</button>
+      <button id="btnUnverifyUser" style="background:#FF3B30; margin-top:8px;">❌ Unverifikasi User</button>
+      <div id="error3" class="error hidden"></div>
+      <div id="success3" class="success hidden"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/admin';
+    const SECRET = 'javin_apk_secret'; // Harus sama dengan NEONT_APP_SECRET di Cloudflare
+    let sessionToken = null;
+    let otpId = null;
+
+    // ===== STEP 1: LOGIN =====
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      const password = document.getElementById('password').value;
+      const pin = document.getElementById('pin').value;
+      const err = document.getElementById('error1');
+      err.classList.add('hidden');
+
+      if (!password || !pin) {
+        err.textContent = 'Password dan PIN wajib diisi';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Neont-Secret': SECRET },
+          body: JSON.stringify({ password, pin })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          otpId = data.otp_id;
+          document.getElementById('step1').classList.remove('active');
+          document.getElementById('step2').classList.add('active');
+        } else {
+          err.textContent = data.message || 'Login gagal';
+          err.classList.remove('hidden');
+        }
+      } catch (e) {
+        err.textContent = 'Error: ' + e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    // ===== STEP 2: OTP =====
+    document.getElementById('btnVerifyOtp').addEventListener('click', async () => {
+      const otp = document.getElementById('otp').value;
+      const err = document.getElementById('error2');
+      err.classList.add('hidden');
+
+      if (otp.length !== 6) {
+        err.textContent = 'OTP harus 6 digit';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Neont-Secret': SECRET },
+          body: JSON.stringify({ otp_id: otpId, otp })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          sessionToken = data.token;
+          document.getElementById('step2').classList.remove('active');
+          document.getElementById('step3').classList.add('active');
+        } else {
+          err.textContent = data.message || 'OTP salah';
+          err.classList.remove('hidden');
+        }
+      } catch (e) {
+        err.textContent = 'Error: ' + e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    // ===== STEP 3: VERIFIKASI =====
+    async function verifyUser(isVerified) {
+      const username = document.getElementById('username').value.trim();
+      const err = document.getElementById('error3');
+      const success = document.getElementById('success3');
+      err.classList.add('hidden');
+      success.classList.add('hidden');
+
+      if (!username) {
+        err.textContent = 'Username wajib diisi';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/verify-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Neont-Secret': SECRET,
+            'Authorization': 'Bearer ' + sessionToken
+          },
+          body: JSON.stringify({ username, is_verified: isVerified ? 1 : 0 })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          success.textContent = data.message;
+          success.classList.remove('hidden');
+        } else {
+          err.textContent = data.message || 'Gagal';
+          err.classList.remove('hidden');
+        }
+      } catch (e) {
+        err.textContent = 'Error: ' + e.message;
+        err.classList.remove('hidden');
+      }
+    }
+
+    document.getElementById('btnVerifyUser').addEventListener('click', () => verifyUser(true));
+    document.getElementById('btnUnverifyUser').addEventListener('click', () => verifyUser(false));
+  </script>
+</body>
+</html>
